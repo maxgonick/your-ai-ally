@@ -35,31 +35,8 @@ async def run(playwright: Playwright, prompt: str):
         only_n_most_recent_images=10,
     )
     print(messages[-1]["content"][0]["text"])
-    
-    
-    
-    
-    
-    
-    
-    # if invariant_client is not None:
-    #     response = invariant_client.create_request_and_push_trace(
-    #         messages=[anthropic_to_invariant(messages)],
-    #         dataset="playwright_computer_use_trace",
-    #     )
-    #     url = f"{invariant_client.api_url}/trace/{response.id[0]}"
-    #     print(f"View the trace at {url}")
-    # else:
-    #     print(
-    #         "No INVARIANT_API_KEY found. Add it to your .env file to push the trace to Invariant explorer https://explorer.invariantlabs.ai."
-    #     )
-    # await browser.close()
 
-
-prompt = sys.argv[1] if len(sys.argv) > 1 else "What is the capital of France?"
-
-
-async def main():
+async def main(prompt=sys.argv[1]):
     """Run the Agent loop."""
     async with async_playwright() as playwright:
         await run(playwright, prompt)
