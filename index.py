@@ -36,10 +36,13 @@ async def run(playwright: Playwright, prompt: str):
     )
     print(messages[-1]["content"][0]["text"])
 
-async def main(prompt=sys.argv[1]):
+
+async def main(prompt="www.cnn.com"):
     """Run the Agent loop."""
+    prompt = "Tell me what actions I can take as a user at the following url " + prompt
     async with async_playwright() as playwright:
         await run(playwright, prompt)
 
 
-asyncio.run(main())
+if __name__ == "__main__)":
+    asyncio.run(main())

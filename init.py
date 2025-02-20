@@ -1,5 +1,7 @@
 from termcolor import colored
 import pyfiglet
+import index
+import asyncio
 
 
 def init():
@@ -12,6 +14,8 @@ def init():
         )
     )
     url = input("> ")
+
+    asyncio.run(index.main(url))
 
 
 if __name__ == "__main__":
