@@ -1,0 +1,16 @@
+anthropic
+python-dotenv
+playwright
+Pillow
+fastapi
+uvicorn
+websockets
+pydantic
+requests
+termcolor
+pyfiglet
+
+# For the stream
+aiortc
+av
+numpy
