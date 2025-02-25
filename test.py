@@ -70,7 +70,7 @@ async def run_lighthouse(page, url, categories=None, output_format="html"):
         "npx",
         "lighthouse",
         url,
-        categories_arg,
+        # categories_arg,
         "--chrome-flags=--headless",
         # f"--port={browser_ws_endpoint.split(':')[-1]}",
         output_arg,
@@ -79,7 +79,7 @@ async def run_lighthouse(page, url, categories=None, output_format="html"):
 
     try:
         process = subprocess.run(cmd, capture_output=True, text=True, check=True)
-
+        print("TEST")
         # Copy the report to the output directory
         final_path = OUTPUT_DIR / report_path.name
         with open(report_path, "rb") as src, open(final_path, "wb") as dst:

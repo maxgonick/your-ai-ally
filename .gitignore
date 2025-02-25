@@ -1,2 +1,4 @@
 venv
 .env
+lighthouses_reports
+__pycache__
