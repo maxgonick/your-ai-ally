@@ -5,7 +5,8 @@ from playwright.async_api import async_playwright, Playwright
 from playwright_claude_lib.loop import sampling_loop, anthropic_to_invariant
 from playwright_computer_use.async_api import PlaywrightToolbox
 from anthropic import Anthropic
-from invariant_sdk.client import Client as InvariantClient
+
+# from invariant_sdk.client import Client as InvariantClient
 from dotenv import load_dotenv
 import os
 import sys
@@ -14,7 +15,7 @@ import sys
 load_dotenv()
 
 anthropic_client = Anthropic()
-invariant_client = InvariantClient() if "INVARIANT_API_KEY" in os.environ else None
+# invariant_client = InvariantClient() if "INVARIANT_API_KEY" in os.environ else None
 
 
 async def run(playwright: Playwright, prompt: str):
