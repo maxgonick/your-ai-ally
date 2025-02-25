@@ -27,7 +27,7 @@ from anthropic.types.beta import (
     BetaToolUseBlockParam,
 )
 
-from playwright_computer_use.async_api import PlaywrightToolbox, ToolResult
+from .async_api import PlaywrightToolbox, ToolResult
 
 COMPUTER_USE_BETA_FLAG = "computer-use-2024-10-22"
 PROMPT_CACHING_BETA_FLAG = "prompt-caching-2024-07-31"
@@ -186,9 +186,11 @@ def anthropic_to_invariant(
                             output.append(
                                 {
                                     "role": "tool",
-                                    "content": {"is_error": True}
-                                    if sub_message["is_error"]
-                                    else {},
+                                    "content": (
+                                        {"is_error": True}
+                                        if sub_message["is_error"]
+                                        else {}
+                                    ),
                                     "tool_id": sub_message["tool_use_id"],
                                 }
                             )

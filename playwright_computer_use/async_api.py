@@ -1,40 +1,81 @@
 """This module contains the PlaywrightToolbox class to be used with an Async Playwright Page."""
 
-from playwright.sync_api import Page
-from anthropic.types.beta import BetaToolComputerUse20241022Param, BetaToolParam
-from typing import Literal
-from PIL import Image
 import importlib.resources
-
-import io
 import base64
-from playwright_computer_use.async_api import (
-    ToolError,
-    ToolResult,
-    ComputerToolOptions,
-    Action,
-    chunks,
-    TYPING_GROUP_SIZE,
-    to_playwright_key,
-    load_cursor_image,
-    _make_api_tool_result,
+from typing import Literal, TypedDict
+from playwright.async_api import Page
+from PIL import Image
+import io
+from anthropic.types.beta import (
+    BetaToolComputerUse20241022Param,
+    BetaToolParam,
+    BetaToolResultBlockParam,
+    BetaTextBlockParam,
+    BetaImageBlockParam,
 )
+from dataclasses import dataclass
+
+TYPING_GROUP_SIZE = 50
+
+Action = Literal[
+    "key",
+    "type",
+    "mouse_move",
+    "left_click",
+    "left_click_drag",
+    "right_click",
+    "middle_click",
+    "double_click",
+    "screenshot",
+    "cursor_position",
+]
+
+
+class ComputerToolOptions(TypedDict):
+    """Options for the computer tool."""
+
+    display_height_px: int
+    display_width_px: int
+    display_number: int | None
+
+
+def chunks(s: str, chunk_size: int) -> list[str]:
+    """Split a string into chunks of a specific size."""
+    return [s[i : i + chunk_size] for i in range(0, len(s), chunk_size)]
+
+
+@dataclass(kw_only=True, frozen=True)
+class ToolResult:
+    """Represents the result of a tool execution."""
+
+    output: str | None = None
+    error: str | None = None
+    base64_image: str | None = None
+
+
+class ToolError(Exception):
+    """Raised when a tool encounters an error."""
+
+    def __init__(self, message):
+        """Create a new ToolError."""
+        self.message = message
 
 
 class PlaywrightToolbox:
-    """Toolbox for interaction between Claude and Sync Playwright Page."""
+    """Toolbox for interaction between Claude and Async Playwright Page."""
 
     def __init__(
         self,
         page: Page,
         use_cursor: bool = True,
-        screenshot_wait_until: Literal["load", "domcontentloaded", "networkidle"]
-        | None = None,
+        screenshot_wait_until: (
+            Literal["load", "domcontentloaded", "networkidle"] | None
+        ) = None,
     ):
         """Create a new PlaywrightToolbox.
 
         Args:
-            page: The Sync Playwright page to interact with.
+            page: The Async Playwright page to interact with.
             use_cursor: Whether to display the cursor in the screenshots or not.
             screenshot_wait_until: Optional, wait until the page is in a specific state before taking a screenshot. Default does not wait
 
@@ -54,12 +95,14 @@ class PlaywrightToolbox:
         """Expose the params of all the tools in the toolbox."""
         return [tool.to_params() for tool in self.tools]
 
-    def run_tool(self, name: str, input: dict, tool_use_id: str):
+    async def run_tool(
+        self, name: str, input: dict, tool_use_id: str
+    ) -> BetaToolResultBlockParam:
         """Pick the right tool using `name` and run it."""
         if name not in [tool.name for tool in self.tools]:
             return ToolError(message=f"Unknown tool {name}, only computer use allowed")
         tool = next(tool for tool in self.tools if tool.name == name)
-        result = tool(**input)
+        result = await tool(**input)
         return _make_api_tool_result(tool_use_id=tool_use_id, result=result)
 
 
@@ -72,7 +115,7 @@ class PlaywrightSetURLTool:
         """Create a new PlaywrightSetURLTool.
 
         Args:
-            page: The Sync Playwright page to interact with.
+            page: The Async Playwright page to interact with.
         """
         super().__init__()
         self.page = page
@@ -94,10 +137,10 @@ class PlaywrightSetURLTool:
             },
         )
 
-    def __call__(self, *, url: str):
+    async def __call__(self, *, url: str):
         """Trigger goto the chosen url."""
         try:
-            self.page.goto(url)
+            await self.page.goto(url)
             return ToolResult()
         except Exception as e:
             return ToolResult(error=str(e))
@@ -112,7 +155,7 @@ class PlaywrightBackTool:
         """Create a new PlaywrightBackTool.
 
         Args:
-            page: The Sync Playwright page to interact with.
+            page: The Async Playwright page to interact with.
         """
         super().__init__()
         self.page = page
@@ -129,17 +172,17 @@ class PlaywrightBackTool:
             },
         )
 
-    def __call__(self):
+    async def __call__(self):
         """Trigger the back button in the browser."""
         try:
-            self.page.go_back()
+            await self.page.go_back()
             return ToolResult()
         except Exception as e:
             return ToolResult(error=str(e))
 
 
 class PlaywrightComputerTool:
-    """A tool that allows the agent to interact with Sync Playwright Page."""
+    """A tool that allows the agent to interact with Async Playwright Page."""
 
     name: Literal["computer"] = "computer"
     api_type: Literal["computer_20241022"] = "computer_20241022"
@@ -160,7 +203,7 @@ class PlaywrightComputerTool:
         return {
             "display_width_px": self.width,
             "display_height_px": self.height,
-            "display_number": 0,  # hardcoded
+            "display_number": 1,  # hardcoded
         }
 
     def to_params(self) -> BetaToolComputerUse20241022Param:
@@ -171,13 +214,14 @@ class PlaywrightComputerTool:
         self,
         page: Page,
         use_cursor: bool = True,
-        screenshot_wait_until: Literal["load", "domcontentloaded", "networkidle"]
-        | None = None,
+        screenshot_wait_until: (
+            Literal["load", "domcontentloaded", "networkidle"] | None
+        ) = None,
     ):
         """Initializes the PlaywrightComputerTool.
 
         Args:
-            page: The Sync Playwright page to interact with.
+            page: The Async Playwright page to interact with.
             use_cursor: Whether to display the cursor in the screenshots or not.
             screenshot_wait_until: Optional, wait until the page is in a specific state before taking a screenshot. Default does not wait
         """
@@ -187,7 +231,7 @@ class PlaywrightComputerTool:
         self.mouse_position: tuple[int, int] = (0, 0)
         self.screenshot_wait_until = screenshot_wait_until
 
-    def __call__(
+    async def __call__(
         self,
         *,
         action: Action,
@@ -209,7 +253,7 @@ class PlaywrightComputerTool:
             x, y = coordinate
 
             if action == "mouse_move":
-                action = self.page.mouse.move(x, y)
+                action = await self.page.mouse.move(x, y)
                 self.mouse_position = (x, y)
                 return ToolResult(output=None, error=None, base64_image=None)
             elif action == "left_click_drag":
@@ -225,12 +269,12 @@ class PlaywrightComputerTool:
 
             if action == "key":
                 # hande shifts
-                self.press_key(text)
+                await self.press_key(text)
                 return ToolResult()
             elif action == "type":
                 for chunk in chunks(text, TYPING_GROUP_SIZE):
-                    self.page.keyboard.type(chunk)
-                return self.screenshot()
+                    await self.page.keyboard.type(chunk)
+                return await self.screenshot()
 
         if action in (
             "left_click",
@@ -246,7 +290,7 @@ class PlaywrightComputerTool:
                 raise ToolError(f"coordinate is not accepted for {action}")
 
             if action == "screenshot":
-                return self.screenshot()
+                return await self.screenshot()
             elif action == "cursor_position":
                 return ToolResult(
                     output=f"X={self.mouse_position[0]},Y={self.mouse_position[1]}"
@@ -258,21 +302,21 @@ class PlaywrightComputerTool:
                     "middle_click": {"button": "middle", "click_count": 1},
                     "double_click": {"button": "left", "click_count": 2, "delay": 100},
                 }[action]
-                self.page.mouse.click(
+                await self.page.mouse.click(
                     self.mouse_position[0], self.mouse_position[1], **click_arg
                 )
                 return ToolResult()
 
         raise ToolError(f"Invalid action: {action}")
 
-    def screenshot(self) -> ToolResult:
+    async def screenshot(self) -> ToolResult:
         """Take a screenshot of the current screen and return the base64 encoded image."""
         if self.screenshot_wait_until is not None:
-            self.page.wait_for_load_state(self.screenshot_wait_until)
-        screenshot = self.page.screenshot()
+            await self.page.wait_for_load_state(self.screenshot_wait_until)
+        await self.page.wait_for_load_state()
+        screenshot = await self.page.screenshot()
         image = Image.open(io.BytesIO(screenshot))
         img_small = image.resize((self.width, self.height), Image.LANCZOS)
-
         if self.use_cursor:
             cursor = load_cursor_image()
             img_small.paste(cursor, self.mouse_position, cursor)
@@ -281,14 +325,115 @@ class PlaywrightComputerTool:
         base64_image = base64.b64encode(buffered.getvalue()).decode()
         return ToolResult(base64_image=base64_image)
 
-    def press_key(self, key: str):
+    async def press_key(self, key: str):
         """Press a key on the keyboard. Handle + shifts. Eg: Ctrl+Shift+T."""
         shifts = []
         if "+" in key:
             shifts += key.split("+")[:-1]
             key = key.split("+")[-1]
         for shift in shifts:
-            self.page.keyboard.down(shift)
-        self.page.keyboard.press(to_playwright_key(key))
+            await self.page.keyboard.down(shift)
+        await self.page.keyboard.press(to_playwright_key(key))
         for shift in shifts:
-            self.page.keyboard.up(shift)
+            await self.page.keyboard.up(shift)
+
+
+def to_playwright_key(key: str) -> str:
+    """Convert a key to the Playwright key format."""
+    valid_keys = (
+        ["F{i}" for i in range(1, 13)]
+        + ["Digit{i}" for i in range(10)]
+        + ["Key{i}" for i in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"]
+        + [i for i in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"]
+        + [i.lower() for i in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"]
+        + [
+            "Backquote",
+            "Minus",
+            "Equal",
+            "Backslash",
+            "Backspace",
+            "Tab",
+            "Delete",
+            "Escape",
+            "ArrowDown",
+            "End",
+            "Enter",
+            "Home",
+            "Insert",
+            "PageDown",
+            "PageUp",
+            "ArrowRight",
+            "ArrowUp",
+        ]
+    )
+    if key in valid_keys:
+        return key
+    if key == "Return":
+        return "Enter"
+    if key == "Page_Down":
+        return "PageDown"
+    if key == "Page_Up":
+        return "PageUp"
+    if key == "Left":
+        return "ArrowLeft"
+    if key == "Right":
+        return "ArrowRight"
+    if key == "Up":
+        return "ArrowUp"
+    if key == "Down":
+        return "ArrowDown"
+    if key == "BackSpace":
+        return "Backspace"
+    if key == "alt":
+        return "Alt"
+    print(f"Key {key} is not properly mapped into playwright")
+    return key
+
+
+def load_cursor_image():
+    """Access the cursor.png file in the assets directory."""
+    with importlib.resources.open_binary(
+        "playwright_computer_use.assets", "cursor.png"
+    ) as img_file:
+        image = Image.open(img_file)
+        image.load()  # Ensure the image is fully loaded into memory
+    return image
+
+
+def _make_api_tool_result(
+    result: ToolResult, tool_use_id: str
+) -> BetaToolResultBlockParam:
+    """Convert an agent ToolResult to an API ToolResultBlockParam."""
+    if result.error:
+        return BetaToolResultBlockParam(
+            tool_use_id=tool_use_id,
+            is_error=True,
+            content=result.error,
+            type="tool_result",
+        )
+    else:
+        tool_result_content: list[BetaTextBlockParam | BetaImageBlockParam] = []
+        if result.output:
+            tool_result_content.append(
+                BetaTextBlockParam(
+                    type="text",
+                    text=result.output,
+                )
+            )
+        if result.base64_image:
+            tool_result_content.append(
+                BetaImageBlockParam(
+                    type="image",
+                    source={
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": result.base64_image,
+                    },
+                )
+            )
+        return BetaToolResultBlockParam(
+            tool_use_id=tool_use_id,
+            is_error=False,
+            content=tool_result_content,
+            type="tool_result",
+        )
