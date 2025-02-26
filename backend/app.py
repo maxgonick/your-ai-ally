@@ -3,8 +3,8 @@
 import asyncio
 import base64
 import json
-import os
 from typing import List, Optional
+import uuid
 
 import uvicorn
 from fastapi import (
@@ -58,6 +58,11 @@ class ConnectionManager:
         self.stream_task = None
         self.stream_fps = fps  # Frames per second for streaming
 
+    def generate_interaction_id(self):
+        """Generate a new unique interaction ID."""
+        self.interaction_id = str(uuid.uuid4())
+        return self.interaction_id
+
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
@@ -81,6 +86,22 @@ class ConnectionManager:
             except Exception as e:
                 print(f"Error sending message to websocket: {e}")
 
+    async def send_update(
+        self, status: str, interaction_id: str, data: Optional[dict] = None
+    ):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(
+                    {
+                        "type": "update",
+                        "status": status,
+                        "interaction_id": interaction_id,
+                        "data": data,
+                    }
+                )
+            except Exception as e:
+                print(f"Error sending message to websocket: {e}")
+
     async def setup_browser(self):
         """Initialize the Playwright browser if not already running."""
         if self.browser is None:
@@ -90,7 +111,7 @@ class ConnectionManager:
             self.page = await self.context.new_page()
             await self.page.set_viewport_size({"width": 1024, "height": 768})
             self.tools = PlaywrightToolbox(self.page, use_cursor=True)
-            await self.page.goto("https://www.ucla.edu")
+            await self.page.goto("https://www.svelte.dev")
             return True
         return False
 
@@ -144,7 +165,7 @@ class ConnectionManager:
 
         return True
 
-    async def run_agent(self, prompt: str):
+    async def run_computer_use(self, prompt: str, interaction_id: str):
         """Run the Claude agent with the given prompt."""
         if not self.page or not self.tools:
             raise ValueError("Browser is not initialized")
@@ -165,12 +186,32 @@ class ConnectionManager:
                 if message["role"] == "assistant":
                     for content_block in message["content"]:
                         if content_block["type"] == "tool_use":
-                            logging_msg = f"tool call > {content_block['name']} {content_block['input']}"
-                            print(logging_msg)
-                            await self.send_message(logging_msg)
-            return {"status": "completed", "message": "Agent task completed"}
+                            await self.send_update(
+                                "step",
+                                interaction_id,
+                                {
+                                    "type": "tool_use",
+                                    "system": content_block["name"],
+                                    "action": content_block["input"],
+                                },
+                            )
+
+            if messages and len(messages) > 0:
+                last_message = messages[-1]
+                if last_message["role"] == "assistant" and "content" in last_message:
+                    for content_block in last_message["content"]:
+                        if content_block["type"] == "text":
+                            await self.send_update(
+                                "completed",
+                                interaction_id,
+                                {"message": content_block["text"]},
+                            )
         except Exception as e:
             await self.send_message(f"Error running agent: {str(e)}")
+            await self.send_update(
+                "failed",
+                interaction_id,
+            )
             return {"status": "error", "message": str(e)}
 
 
@@ -263,12 +304,12 @@ async def navigate(request: BrowserControlRequest):
 
     try:
         await manager.page.goto(request.url)
-        return {"status": "success", "message": f"Navigated to {request.url}"}
+        return {"status": "completed", "message": f"Navigated to {request.url}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/agent/run")
+@app.post("/command/run")
 async def run_agent(request: AgentPromptRequest, background_tasks: BackgroundTasks):
     """Run the agent with a specific prompt."""
     if not manager.page:
@@ -278,9 +319,15 @@ async def run_agent(request: AgentPromptRequest, background_tasks: BackgroundTas
         raise HTTPException(status_code=400, detail="Prompt is required")
 
     # Run the agent in the background to avoid blocking the API
-    background_tasks.add_task(manager.run_agent, request.prompt)
 
-    return {"status": "success", "message": "Agent started"}
+    interaction_id = manager.generate_interaction_id()
+    background_tasks.add_task(manager.run_computer_use, request.prompt, interaction_id)
+
+    return {
+        "status": "started",
+        "message": "Agent started",
+        "interaction_id": interaction_id,
+    }
 
 
 @app.get("/streaming/start")
@@ -322,7 +369,7 @@ async def set_fps(request: FpsControlRequest):
     return {"status": "success", "message": f"Stream FPS set to {request.fps}"}
 
 
-@app.post("/event/cursorEvent")
+@app.post("/browser/cursorEvent")
 async def get_click(request: CursorRequest):
     print("TEST")
     if request.type == CursorEventType.HOVER:
