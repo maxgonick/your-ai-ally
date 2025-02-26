@@ -29,21 +29,26 @@ from anthropic.types.beta import (
 
 from .async_api import PlaywrightToolbox, ToolResult
 
-COMPUTER_USE_BETA_FLAG = "computer-use-2024-10-22"
+COMPUTER_USE_BETA_FLAG = "computer-use-2025-01-24"
 PROMPT_CACHING_BETA_FLAG = "prompt-caching-2024-07-31"
 
 
-# This system prompt is optimized for the Docker environment in this repository and
-# specific tool combinations enabled.
-# We encourage modifying this system prompt to ensure the model has context for the
-# environment it is running in, and to provide any additional information that may be
-# helpful for the task at hand.
+# Updated system prompt with error handling guidance
 SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
-* You are utilising an firefox browser with internet access. The entirity of the task you are given can be solved by navigating from this web page.
+* You are utilizing a Firefox browser on macOS with internet access. The entirety of the task you are given can be solved by navigating from this web page.
 * You can only use one page, and you can't open new tabs.
-* When viewing a page it can be helpful to zoom out so that you can see everything on the page.  Either that, or make sure you scroll down to see everything before deciding something isn't available.
-* When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request. At the end always ask for a screenshot, to make sure the state of the page is as you expect.
+* When viewing a page it can be helpful to zoom out so that you can see everything on the page. Either that, or make sure you scroll down to see everything before deciding something isn't available.
+* When using your computer function calls, they take a while to run and send back to you. Where possible/feasible, try to chain multiple of these calls all into one function calls request. At the end always ask for a screenshot, to make sure the state of the page is as you expect.
 * The current date is {datetime.today().strftime("%A, %B %-d, %Y")}.
+* Always start with a screenshot to better understand if the prompt should be executed on the current page.
+* Do not navigate to a new page unless you are explicitly asked to do so.
+* Make sure to use macOS keyboard shortcuts when using the computer.
+* If you encounter an error message, read it carefully and try again with the suggested corrections. Common errors include:
+  - Invalid actions
+  - Missing required parameters
+  - Coordinates outside the viewport
+  - Unrecognized keys
+* When you receive an error, don't repeat the same command. Instead, adjust your approach based on the error message.
 </SYSTEM_CAPABILITY>
 """
 
@@ -58,8 +63,9 @@ async def sampling_loop(
     tools: PlaywrightToolbox,
     only_n_most_recent_images: int | None = None,
     max_tokens: int = 4096,
-    enable_prompt_caching: bool = True,
+    enable_prompt_caching: bool = False,
     verbose: bool = False,
+    progress_callback: Callable[[str, str], None] | None = None,
 ):
     """Agentic sampling loop for the assistant/tool interaction of computer use."""
     assert page is not None, "playwright page must be provided"
@@ -82,7 +88,7 @@ async def sampling_loop(
                         )
     while True:
         enable_prompt_caching = False
-        betas = [COMPUTER_USE_BETA_FLAG]
+        betas = [COMPUTER_USE_BETA_FLAG]  # Updated beta flag
         image_truncation_threshold = only_n_most_recent_images or 0
 
         if enable_prompt_caching:
@@ -101,9 +107,6 @@ async def sampling_loop(
             )
 
         # Call the API
-        # we use raw_response to provide debug information to streamlit. Your
-        # implementation may be able call the SDK directly with:
-        # `response = client.messages.create(...)` instead.
         try:
             if verbose:
                 sys.stdout.write("Calling Model")
@@ -115,6 +118,10 @@ async def sampling_loop(
                 system=[system],
                 tools=tools.to_params(),
                 betas=betas,
+                thinking={
+                    "type": "enabled",
+                    "budget_tokens": 1024,
+                },  # Add thinking parameter
             )
             if verbose:
                 sys.stdout.write(
@@ -127,6 +134,21 @@ async def sampling_loop(
             return [{"role": "system", "content": system_prompt}] + messages
 
         response_params = _response_to_params(response)
+
+        # If there's a callback, send the assistant's response
+        for content_block in response_params:
+            if content_block["type"] == "text" and progress_callback:
+                await progress_callback("assistant_message", content_block["text"])
+            if content_block["type"] == "tool_use" and progress_callback:
+                await progress_callback(
+                    "tool_use",
+                    {
+                        "name": content_block["name"],
+                        "input": content_block["input"],
+                        "id": content_block["id"],
+                    },
+                )
+
         messages.append(
             {
                 "role": "assistant",
@@ -135,91 +157,84 @@ async def sampling_loop(
         )
 
         tool_result_content: list[BetaToolResultBlockParam] = []
+        has_invalid_command = False
+
         for content_block in response_params:
             if content_block["type"] == "tool_use":
                 if verbose:
                     print(
                         f"tool call > {content_block['name']} {content_block['input']}"
                     )
+
                 result = await tools.run_tool(
                     name=content_block["name"],
                     input=content_block["input"],
                     tool_use_id=content_block["id"],
                 )
+
                 tool_result_content.append(result)
+
+                # Check if there was an error and set the flag
+                if result.get("is_error", False):
+                    has_invalid_command = True
+                    if verbose:
+                        print(f"Error detected: {result.get('content', '')}")
+
+                # If there's a callback, send the tool result
+                if progress_callback:
+                    if result.get("is_error", False):
+                        await progress_callback(
+                            "tool_result",
+                            {
+                                "is_error": True,
+                                "content": result.get("content", ""),
+                                "tool_use_id": content_block["id"],
+                            },
+                        )
+                    else:
+                        # Handle possible image content
+                        result_content = []
+                        for item in result.get("content", []):
+                            if item.get("type") == "text":
+                                result_content.append(
+                                    {"type": "text", "text": item.get("text", "")}
+                                )
+                            elif item.get("type") == "image":
+                                result_content.append({"type": "image"})
+
+                        await progress_callback(
+                            "tool_result",
+                            {
+                                "is_error": False,
+                                "content": result_content,
+                                "tool_use_id": content_block["id"],
+                            },
+                        )
+
             if verbose and content_block["type"] == "text":
                 print(f"assistant > {content_block['text']}")
 
         if not tool_result_content:
             return [{"role": "system", "content": system_prompt}] + messages
 
-        messages.append({"content": tool_result_content, "role": "user"})
+        # If any command was invalid, add a special message to tell Claude to correct and try again
+        if has_invalid_command:
+            # First add the tool result content to show the errors
+            messages.append({"content": tool_result_content, "role": "user"})
 
+            # Then add a message instructing Claude to correct its approach
+            correction_message = BetaTextBlockParam(
+                type="text",
+                text="I noticed an error in your previous command. Please review the error message carefully and try again with the correct parameters. Remember to adjust your approach based on the feedback provided in the error message.",
+            )
+            messages.append({"content": [correction_message], "role": "user"})
 
-def anthropic_to_invariant(
-    messages: list[dict], keep_empty_tool_response: bool = False
-) -> list[dict]:
-    """Converts a list of messages from the Anthropic API to the Invariant API format."""
-    output = []
-    for message in messages:
-        if message["role"] == "system":
-            output.append({"role": "system", "content": message["content"]})
-        if message["role"] == "user":
-            if isinstance(message["content"], list):
-                for sub_message in message["content"]:
-                    assert sub_message["type"] == "tool_result"
-                    if sub_message["content"]:
-                        assert len(sub_message["content"]) == 1
-                        assert sub_message["content"][0]["type"] == "image"
-                        output.append(
-                            {
-                                "role": "tool",
-                                "content": "local_base64_img: "
-                                + sub_message["content"][0]["source"]["data"],
-                                "tool_id": sub_message["tool_use_id"],
-                            }
-                        )
-                    else:
-                        if keep_empty_tool_response and any(
-                            [sub_message[k] for k in sub_message]
-                        ):
-                            output.append(
-                                {
-                                    "role": "tool",
-                                    "content": (
-                                        {"is_error": True}
-                                        if sub_message["is_error"]
-                                        else {}
-                                    ),
-                                    "tool_id": sub_message["tool_use_id"],
-                                }
-                            )
-            else:
-                output.append({"role": "user", "content": message["content"]})
-        if message["role"] == "assistant":
-            for sub_message in message["content"]:
-                if sub_message["type"] == "text":
-                    output.append(
-                        {"role": "assistant", "content": sub_message.get("text")}
-                    )
-                if sub_message["type"] == "tool_use":
-                    output.append(
-                        {
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [
-                                {
-                                    "tool_id": sub_message.get("id"),
-                                    "type": "function",
-                                    "function": {
-                                        "name": sub_message.get("name"),
-                                        "arguments": sub_message.get("input"),
-                                    },
-                                }
-                            ],
-                        }
-                    )
-    return output
+            # If we have a progress callback, send the correction message
+            if progress_callback:
+                await progress_callback("user_message", correction_message["text"])
+        else:
+            # Normal flow - just add the tool results
+            messages.append({"content": tool_result_content, "role": "user"})
 
 
 def _maybe_filter_to_n_most_recent_images(

@@ -9,18 +9,27 @@ declare global {
 		// interface Platform {}
 	}
 
-	type Command = {
+	interface Command {
 		id: string;
 		name: string;
 		description: string;
 		placeholder: string;
 		icon: typeof ArrowRight;
-		onSend: (text: string) => Promise<void>;
+		onSend: (text: string) => Promise<{
+			status: "completed" | "started" | "failed"
+			message: string;
+		}>;
 		enableSend: (text: string) => boolean;
 		runningText: string;
 	};
 
 	interface Message { role: "User" | "Agent"; content: string; command: Command }
+
+	interface Update {
+		status: 'step' | 'failed' | 'completed';
+		interaction_id: string;
+		data: any;
+	}
 
 
 }

@@ -6,6 +6,7 @@ export const connected = writable(false);
 export const messages = writable<string[]>([]);
 export const browserScreenshot = writable<string>('');
 export const isLoading = writable(false);
+export const updates = writable<Update[]>([]);
 
 // Browser state
 export const browserStatus = writable<'idle' | 'starting' | 'running' | 'stopping'>('idle');
@@ -60,7 +61,11 @@ export function connectWebSocket() {
                 isLoading.set(false);
             } else if (data.type === 'message') {
                 addMessage('Agent', data.data);
-            } else if (data.type === 'pong') {
+            } else if (data.type === 'update') {
+                updates.update((prev) => [...prev, data]);
+                addMessage('Agent', JSON.stringify(data.data));
+            }
+            else if (data.type === 'pong') {
                 // Connection is alive
             }
         } catch (e) {
@@ -156,6 +161,7 @@ export async function navigateToUrl(url: string) {
         const data = await response.json();
         addMessage('System', data.message);
 
+
     } catch (error) {
         addMessage('System', `Failed to navigate - ${error}`, true);
         isLoading.set(false);
@@ -165,14 +171,14 @@ export async function navigateToUrl(url: string) {
 export async function runAgent(prompt: string) {
     if (!prompt) {
         addMessage('System', 'Please enter a prompt', true);
-        return;
+        return "";
     }
 
     addMessage('System', 'Running agent with prompt: ' + prompt);
 
 
     try {
-        const response = await fetch(`${apiUrl}/agent/run`, {
+        const response = await fetch(`${apiUrl}/command/run`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -181,8 +187,10 @@ export async function runAgent(prompt: string) {
         });
         const data = await response.json();
         addMessage('System', data.message);
+        return data.interaction_id as string
     } catch (error) {
         addMessage('System', `Failed to run agent - ${error}`, true);
+        return ""
     }
 }
 

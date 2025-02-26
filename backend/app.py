@@ -3,8 +3,9 @@
 import asyncio
 import base64
 import json
-from typing import List, Optional
+from typing import List, Optional, Callable, Any
 import uuid
+from datetime import datetime
 
 import uvicorn
 from fastapi import (
@@ -74,7 +75,12 @@ class ConnectionManager:
         for connection in self.active_connections:
             try:
                 await connection.send_json(
-                    {"type": "screenshot", "data": base64_data, "url": self.page.url}
+                    {
+                        "type": "screenshot",
+                        "data": base64_data,
+                        "url": self.page.url,
+                        "timestamp": datetime.now().isoformat(),
+                    }
                 )
             except Exception as e:
                 print(f"Error sending to websocket: {e}")
@@ -82,13 +88,30 @@ class ConnectionManager:
     async def send_message(self, message: str):
         for connection in self.active_connections:
             try:
-                await connection.send_json({"type": "message", "data": message})
+                await connection.send_json(
+                    {
+                        "type": "message",
+                        "data": message,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
             except Exception as e:
                 print(f"Error sending message to websocket: {e}")
 
     async def send_update(
         self, status: str, interaction_id: str, data: Optional[dict] = None
     ):
+        """
+        Send update to websocket clients.
+
+        Status values include:
+        - "started": The interaction has started
+        - "step": A tool is being used
+        - "step_result": Result from a tool execution
+        - "assistant_message": A message from the assistant
+        - "completed": The interaction is complete
+        - "failed": The interaction failed
+        """
         for connection in self.active_connections:
             try:
                 await connection.send_json(
@@ -97,6 +120,7 @@ class ConnectionManager:
                         "status": status,
                         "interaction_id": interaction_id,
                         "data": data,
+                        "timestamp": datetime.now().isoformat(),
                     }
                 )
             except Exception as e:
@@ -111,7 +135,7 @@ class ConnectionManager:
             self.page = await self.context.new_page()
             await self.page.set_viewport_size({"width": 1024, "height": 768})
             self.tools = PlaywrightToolbox(self.page, use_cursor=True)
-            await self.page.goto("https://www.svelte.dev")
+            await self.page.goto("https://www.google.com")
             return True
         return False
 
@@ -172,45 +196,76 @@ class ConnectionManager:
 
         try:
             await self.send_message("Running agent with prompt: " + prompt)
+
+            # Define the progress callback to send real-time updates
+            async def progress_callback(update_type: str, content: Any) -> None:
+                if update_type == "assistant_message":
+                    await self.send_update(
+                        "assistant_message", interaction_id, {"message": content}
+                    )
+                elif update_type == "tool_use":
+                    await self.send_update(
+                        "step",
+                        interaction_id,
+                        {
+                            "type": "tool_use",
+                            "system": content["name"],
+                            "action": content["input"],
+                        },
+                    )
+                elif update_type == "tool_result":
+                    await self.send_update(
+                        "step_result",
+                        interaction_id,
+                        {
+                            "is_error": content.get("is_error", False),
+                            "content": content.get("content", []),
+                            "tool_use_id": content.get("tool_use_id", ""),
+                        },
+                    )
+
+            # Call the sampling loop with the progress callback
             messages = await sampling_loop(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-3-7-sonnet-20250219",
                 anthropic_client=anthropic_client,
                 messages=[{"role": "user", "content": prompt}],
                 tools=self.tools,
                 page=self.page,
                 verbose=True,
                 only_n_most_recent_images=5,
+                progress_callback=progress_callback,
             )
-            # Extract and send the final response from Claude
-            for message in messages:
+
+            # Extract the final response from Claude
+            final_message = None
+            for message in reversed(messages):
                 if message["role"] == "assistant":
                     for content_block in message["content"]:
-                        if content_block["type"] == "tool_use":
-                            await self.send_update(
-                                "step",
-                                interaction_id,
-                                {
-                                    "type": "tool_use",
-                                    "system": content_block["name"],
-                                    "action": content_block["input"],
-                                },
-                            )
-
-            if messages and len(messages) > 0:
-                last_message = messages[-1]
-                if last_message["role"] == "assistant" and "content" in last_message:
-                    for content_block in last_message["content"]:
                         if content_block["type"] == "text":
-                            await self.send_update(
-                                "completed",
-                                interaction_id,
-                                {"message": content_block["text"]},
-                            )
+                            final_message = content_block["text"]
+                            break
+                    if final_message:
+                        break
+
+            if final_message:
+                await self.send_update(
+                    "completed",
+                    interaction_id,
+                    {"message": final_message},
+                )
+            else:
+                await self.send_update(
+                    "completed",
+                    interaction_id,
+                    {"message": "Completed without a final text response."},
+                )
+
         except Exception as e:
             await self.send_message(f"Error running agent: {str(e)}")
             await self.send_update(
                 "failed",
                 interaction_id,
+                {"error": str(e)},
             )
             return {"status": "error", "message": str(e)}
 
@@ -319,8 +374,11 @@ async def run_agent(request: AgentPromptRequest, background_tasks: BackgroundTas
         raise HTTPException(status_code=400, detail="Prompt is required")
 
     # Run the agent in the background to avoid blocking the API
-
     interaction_id = manager.generate_interaction_id()
+
+    # Send an initial update that the interaction has started
+    await manager.send_update("started", interaction_id, {"prompt": request.prompt})
+
     background_tasks.add_task(manager.run_computer_use, request.prompt, interaction_id)
 
     return {

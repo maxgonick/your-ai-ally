@@ -10,6 +10,7 @@
 	import { messages } from '$lib/stores/messages';
 	import { Commands } from '$lib/commands';
 	import Spinner from './spinner.svelte';
+	import { browserStatus } from '$lib/stores/browserStore';
 
 	export let disabled = false;
 
@@ -153,7 +154,7 @@
 			placeholder={selectedAction
 				? selectedAction.placeholder
 				: 'Type @ to access commands or enter a prompt...'}
-			{disabled}
+			disabled={$browserStatus !== 'running'}
 			rows="3"
 			class="placeholder:text-muted-foreground w-full flex-1 resize-none border-0 bg-transparent p-3 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
 			aria-label="Message input"

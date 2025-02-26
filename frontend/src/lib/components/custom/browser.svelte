@@ -92,18 +92,17 @@
 	{#if true}
 		<div class="space-y-3 border-t p-3">
 			<div class="flex flex-wrap gap-2">
-				<div
+				<!-- <div
 					class="connection-status {$connected
 						? 'bg-green-100 text-green-800'
 						: 'bg-red-100 text-red-800'} rounded px-2 py-1 text-xs"
 				>
 					WebSocket: {$connected ? 'Connected' : 'Disconnected'}
-				</div>
+				</div> -->
 
 				<Button
 					onclick={browserStore.startBrowser}
 					variant="outline"
-					size="sm"
 					disabled={$browserStatus === 'running' || $browserStatus === 'starting'}
 				>
 					Start Browser
@@ -112,7 +111,6 @@
 				<Button
 					onclick={browserStore.stopBrowser}
 					variant="outline"
-					size="sm"
 					disabled={$browserStatus === 'idle' || $browserStatus === 'stopping'}
 				>
 					Stop Browser
@@ -129,7 +127,6 @@
 					<Button
 						onclick={() => browserStore.navigateToUrl($urlInput)}
 						variant="outline"
-						size="sm"
 						disabled={$browserStatus !== 'running'}
 					>
 						Navigate
@@ -139,7 +136,7 @@
 
 			<div class="flex items-center gap-2">
 				<label for="fps-control" class="text-sm">Speed (FPS):</label>
-				<input
+				<Input
 					id="fps-control"
 					type="range"
 					min="1"
@@ -153,14 +150,13 @@
 				<Button
 					onclick={() => browserStore.setFps($fpsValue)}
 					variant="outline"
-					size="sm"
 					disabled={$browserStatus !== 'running'}
 				>
 					Apply
 				</Button>
 			</div>
 
-			<div class="flex flex-col gap-2">
+			<!-- <div class="flex flex-col gap-2">
 				<Textarea
 					bind:value={$promptInput}
 					placeholder="Enter prompt for the AI agent"
@@ -176,7 +172,7 @@
 				>
 					Run Agent
 				</Button>
-			</div>
+			</div> -->
 
 			<div class="h-32 overflow-y-auto rounded border bg-gray-50 p-2 text-sm">
 				{#each $messages as message}

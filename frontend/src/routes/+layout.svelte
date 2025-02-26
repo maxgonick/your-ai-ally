@@ -22,7 +22,7 @@
 				type="text"
 				bind:value={$urlInput}
 				placeholder="https://example.com"
-				class="text-muted-foreground flex-1 rounded border-none text-center text-sm shadow-none focus:border-none focus:text-slate-950 focus-visible:border-none focus-visible:ring-0"
+				class="text-muted-foreground w-1/2 overflow-clip rounded border-none text-center text-sm shadow-none focus:border-none focus:text-slate-950 focus-visible:border-none focus-visible:ring-0"
 				disabled={$browserStatus !== 'running'}
 			/>
 

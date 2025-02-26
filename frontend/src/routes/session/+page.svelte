@@ -10,14 +10,14 @@
 </script>
 
 <Resizable.PaneGroup direction="horizontal" class="h-full max-w-full border">
-	<Resizable.Pane defaultSize={25} minSize={25} class="relative flex h-full flex-col">
+	<Resizable.Pane defaultSize={50} minSize={25} class="relative flex h-full flex-col">
 		<Container />
 		<div class="relative z-10 flex w-full items-center justify-center self-end border-t p-4">
 			<ActionInput />
 		</div>
 	</Resizable.Pane>
 	<Resizable.Handle />
-	<Resizable.Pane defaultSize={75} minSize={50} class="min-h-full ">
+	<Resizable.Pane defaultSize={50} minSize={50} class="min-h-full ">
 		<Browser />
 	</Resizable.Pane>
 </Resizable.PaneGroup>
