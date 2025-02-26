@@ -1,20 +1,23 @@
 <script lang="ts">
-	let { children } = $props();
+	import { cn } from '$lib/utils';
+	import type { Snippet } from 'svelte';
+
+	let {
+		children,
+		class: className
+	}: {
+		children: Snippet;
+		class?: string;
+	} = $props();
 </script>
 
 <div class="wrapper">
-	<p>{@render children()}</p>
+	<p class={cn(className)}>{@render children()}</p>
 </div>
 
 <style>
 	.wrapper {
-		font-family: sans-serif;
 		color: #3c3c3c;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		flex-direction: column;
 	}
 
 	@keyframes textShine {

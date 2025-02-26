@@ -31,7 +31,7 @@
 	});
 </script>
 
-<div class="h-12 border-b">
+<!-- <div class="h-12 border-b">
 	<div class="flex h-full items-center justify-evenly px-4">
 		<Popover.Root>
 			<Popover.Trigger
@@ -61,7 +61,7 @@
 			Go
 		</Button>
 	</div>
-</div>
+</div> -->
 
 <div class="flex max-h-full min-h-full flex-col border-b">
 	<!-- Browser View -->

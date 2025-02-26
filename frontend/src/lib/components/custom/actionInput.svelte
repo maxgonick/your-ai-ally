@@ -1,79 +1,22 @@
 <script lang="ts">
-	import { tick, createEventDispatcher } from 'svelte';
+	import { tick } from 'svelte';
 	import * as Command from '$lib/components/ui/command/index.js';
 	import { Button } from '$lib/components/ui/button';
-	import ArrowRight from 'lucide-svelte/icons/arrow-right';
-	import Search from 'lucide-svelte/icons/search';
-	import MessageSquare from 'lucide-svelte/icons/message-square';
 	import ChevronUp from 'lucide-svelte/icons/chevron-up';
 	import Send from 'lucide-svelte/icons/send';
 	import { clickOutside } from '$lib/events/clickOutside';
 	import { flyAndScale } from '$lib/utils';
+	import { turn } from '$lib/stores/turn';
+	import { messages } from '$lib/stores/messages';
+	import { Commands } from '$lib/commands';
+	import Spinner from './spinner.svelte';
 
 	export let disabled = false;
-
-	// Event dispatcher
-	const dispatch = createEventDispatcher<{
-		action: { action: string; value: string };
-	}>();
-
-	type Action = {
-		id: string;
-		name: string;
-		description: string;
-		placeholder: string;
-		icon: typeof ArrowRight;
-		onSend: () => Promise<void>;
-		enableSend: () => boolean;
-	};
-
-	const ACTIONS: Action[] = [
-		{
-			id: 'goto',
-			name: 'Go to page',
-			description: 'Navigate to a specific URL',
-			placeholder: 'Enter URL to navigate to...',
-			icon: ArrowRight,
-
-			onSend: async () => {
-				dispatch('action', { action: 'goto', value: inputText });
-			},
-			enableSend: () => {
-				return inputText.startsWith('http') || inputText.startsWith('www');
-			}
-		},
-		{
-			id: 'get_actions',
-			name: 'Get actions',
-			description: 'Find available actions on this page',
-			placeholder: 'Press enter to get available actions',
-			icon: Search,
-			onSend: async () => {
-				dispatch('action', { action: 'get_actions', value: inputText });
-			},
-			enableSend: () => {
-				return inputText.length > 0;
-			}
-		},
-		{
-			id: 'prompt',
-			name: 'Prompt',
-			description: 'Ask the AI to do something',
-			placeholder: 'Enter your prompt...',
-			icon: MessageSquare,
-			onSend: async () => {
-				dispatch('action', { action: 'prompt', value: inputText });
-			},
-			enableSend: () => {
-				return inputText.length > 0;
-			}
-		}
-	];
 
 	// Component state
 	let inputText = '';
 	let showActions = false;
-	let selectedAction: Action | null = null;
+	let selectedAction: Command = Commands[2];
 	let textarea: HTMLTextAreaElement;
 	let actionsDialogOpen = false;
 	let showKeyboardShortcuts = false;
@@ -98,7 +41,7 @@
 		}
 	}
 
-	function selectAction(action: Action) {
+	function selectAction(action: Command) {
 		selectedAction = action;
 		inputText = ''; // Clear the @ symbol
 		showActions = false;
@@ -112,10 +55,19 @@
 
 	function submitAction() {
 		if (!inputText || !selectedAction) return;
+		turn.set('starting');
 
-		dispatch('action', { action: selectedAction.id, value: inputText });
+		messages.update((msgs) => {
+			msgs.push({
+				role: 'User',
+				content: inputText,
+				command: selectedAction
+			});
+			return msgs;
+		});
+
 		inputText = '';
-		selectedAction = null;
+		selectedAction = Commands[2];
 	}
 
 	// Handle keyboard shortcuts
@@ -236,11 +188,19 @@
 			variant="default"
 			size="sm"
 			onclick={submitAction}
-			disabled={!inputText || !selectedAction || disabled}
+			disabled={!inputText ||
+				!selectedAction ||
+				disabled ||
+				$turn !== 'idle' ||
+				!selectedAction.enableSend(inputText)}
 			aria-label="Send message"
 		>
-			<Send class="mr-1 h-4 w-4" />
-			Send
+			{#if $turn !== 'idle'}
+				<Spinner />
+			{:else}
+				<Send class="mr-1 h-4 w-4" />
+				Send
+			{/if}
 		</Button>
 	</div>
 
@@ -261,7 +221,7 @@
 				<Command.List>
 					<Command.Empty>No actions found</Command.Empty>
 					<Command.Group heading="Available Commands">
-						{#each ACTIONS as action}
+						{#each Commands as action}
 							<Command.Item onSelect={() => selectAction(action)} class="cursor-pointer">
 								<div class="flex items-center gap-2">
 									<span class="flex-shrink-0">

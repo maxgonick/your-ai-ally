@@ -54,8 +54,6 @@ export function connectWebSocket() {
         try {
             const data = JSON.parse(event.data);
 
-            console.log('Received message:', data.type);
-
             if (data.type === 'screenshot') {
                 browserScreenshot.set('data:image/png;base64,' + data.data);
                 urlInput.set(data.url);
@@ -133,13 +131,13 @@ export async function stopBrowser() {
         browserScreenshot.set('');
         browserStatus.set('idle');
     } catch (error) {
-        // addMessage(`System Error: Failed to stop browser - ${error}`);
         addMessage('System', `Failed to stop browser - ${error}`, true);
         browserStatus.set('running');
     }
 }
 
 export async function navigateToUrl(url: string) {
+    console.log(socket)
     if (!url) {
         addMessage('System', 'Please enter a URL', true);
         return;
