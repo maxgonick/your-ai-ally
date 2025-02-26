@@ -2,37 +2,22 @@
 	import * as Resizable from '$lib/components/ui/resizable';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
+	import Browser from '$lib/components/custom/browser.svelte';
+	import CirclePlus from 'lucide-svelte/icons/circle-plus';
+	import Command from '$lib/components/custom/command.svelte';
+	import ActionInput from '$lib/components/custom/actionInput.svelte';
+	import Container from '$lib/components/custom/messages/container.svelte';
 </script>
 
-<div class="flex h-screen w-screen items-center justify-center">
-	<Resizable.PaneGroup direction="horizontal" class="max-w-full border">
-		<Resizable.Pane defaultSize={25} minSize={25} class="relative">
-			<div
-				class="bg-background absolute bottom-0 z-10 flex h-32 w-full items-center justify-center border-t p-4"
-			>
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger>Open</DropdownMenu.Trigger>
-					<DropdownMenu.Content>
-						<DropdownMenu.Group>
-							<DropdownMenu.DropdownMenuGroupHeading
-								>My Account</DropdownMenu.DropdownMenuGroupHeading
-							>
-							<DropdownMenu.Separator />
-							<DropdownMenu.Item>Profile</DropdownMenu.Item>
-							<DropdownMenu.Item>Billing</DropdownMenu.Item>
-							<DropdownMenu.Item>Team</DropdownMenu.Item>
-							<DropdownMenu.Item>Subscription</DropdownMenu.Item>
-						</DropdownMenu.Group>
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
-				<Textarea class="h-full resize-none" placeholder="Enter prompt here" />
-			</div>
-		</Resizable.Pane>
-		<Resizable.Handle />
-		<Resizable.Pane defaultSize={75} minSize={50}>
-			<div class="flex h-full items-center justify-center p-6">
-				<span class="font-semibold">Two</span>
-			</div>
-		</Resizable.Pane>
-	</Resizable.PaneGroup>
-</div>
+<Resizable.PaneGroup direction="horizontal" class="h-full max-w-full border">
+	<Resizable.Pane defaultSize={25} minSize={25} class="relative flex h-full flex-col">
+		<Container />
+		<div class="relative z-10 flex w-full items-center justify-center self-end border-t p-4">
+			<ActionInput />
+		</div>
+	</Resizable.Pane>
+	<Resizable.Handle />
+	<Resizable.Pane defaultSize={75} minSize={50} class="min-h-full ">
+		<Browser />
+	</Resizable.Pane>
+</Resizable.PaneGroup>

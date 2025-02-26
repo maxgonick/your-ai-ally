@@ -50,6 +50,9 @@ devDependencies:
   lucide-svelte:
     specifier: ^0.475.0
     version: 0.475.0(svelte@5.20.4)
+  mode-watcher:
+    specifier: ^0.5.1
+    version: 0.5.1(svelte@5.20.4)
   paneforge:
     specifier: 1.0.0-next.4
     version: 1.0.0-next.4(svelte@5.20.4)
@@ -68,6 +71,9 @@ devDependencies:
   svelte-check:
     specifier: ^4.0.0
     version: 4.1.4(svelte@5.20.4)(typescript@5.7.3)
+  svelte-sonner:
+    specifier: ^0.3.28
+    version: 0.3.28(svelte@5.20.4)
   tailwind-merge:
     specifier: ^3.0.2
     version: 3.0.2
@@ -1893,6 +1899,14 @@ packages:
     engines: {node: '>=16 || 14 >=14.17'}
     dev: true
 
+  /mode-watcher@0.5.1(svelte@5.20.4):
+    resolution: {integrity: sha512-adEC6T7TMX/kzQlaO/MtiQOSFekZfQu4MC+lXyoceQG+U5sKpJWZ4yKXqw846ExIuWJgedkOIPqAYYRk/xHm+w==}
+    peerDependencies:
+      svelte: ^4.0.0 || ^5.0.0-next.1
+    dependencies:
+      svelte: 5.20.4
+    dev: true
+
   /mri@1.2.0:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==}
     engines: {node: '>=4'}
@@ -2491,6 +2505,14 @@ packages:
       espree: 9.6.1
       postcss: 8.5.3
       postcss-scss: 4.0.9(postcss@8.5.3)
+      svelte: 5.20.4
+    dev: true
+
+  /svelte-sonner@0.3.28(svelte@5.20.4):
+    resolution: {integrity: sha512-K3AmlySeFifF/cKgsYNv5uXqMVNln0NBAacOYgmkQStLa/UoU0LhfAACU6Gr+YYC8bOCHdVmFNoKuDbMEsppJg==}
+    peerDependencies:
+      svelte: ^3.0.0 || ^4.0.0 || ^5.0.0-next.1
+    dependencies:
       svelte: 5.20.4
     dev: true
 

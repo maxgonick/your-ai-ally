@@ -67,7 +67,9 @@ class ConnectionManager:
     async def send_screenshot(self, base64_data: str):
         for connection in self.active_connections:
             try:
-                await connection.send_json({"type": "screenshot", "data": base64_data})
+                await connection.send_json(
+                    {"type": "screenshot", "data": base64_data, "url": self.page.url}
+                )
             except Exception as e:
                 print(f"Error sending to websocket: {e}")
 
