@@ -21,6 +21,7 @@ from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 from playwright_computer_use.async_api import PlaywrightToolbox
 from playwright_computer_use.loop import sampling_loop
 from anthropic import Anthropic
+from enum import Enum
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -159,15 +160,14 @@ class ConnectionManager:
                 verbose=True,
                 only_n_most_recent_images=5,
             )
-
             # Extract and send the final response from Claude
-            if messages and len(messages) > 0:
-                last_message = messages[-1]
-                if last_message["role"] == "assistant" and "content" in last_message:
-                    for content_block in last_message["content"]:
-                        if content_block["type"] == "text":
-                            await self.send_message(content_block["text"])
-
+            for message in messages:
+                if message["role"] == "assistant":
+                    for content_block in message["content"]:
+                        if content_block["type"] == "tool_use":
+                            logging_msg = f"tool call > {content_block['name']} {content_block['input']}"
+                            print(logging_msg)
+                            await self.send_message(logging_msg)
             return {"status": "completed", "message": "Agent task completed"}
         except Exception as e:
             await self.send_message(f"Error running agent: {str(e)}")
@@ -196,6 +196,11 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
+class CursorEventType(Enum):
+    HOVER = 1
+    CLICK = 2
+
+
 # Request models
 class BrowserControlRequest(BaseModel):
     url: Optional[str] = None
@@ -207,6 +212,12 @@ class AgentPromptRequest(BaseModel):
 
 class FpsControlRequest(BaseModel):
     fps: int
+
+
+class CursorRequest(BaseModel):
+    type: CursorEventType
+    x_cord: float
+    y_cord: float
 
 
 # REST API endpoints
@@ -309,6 +320,21 @@ async def set_fps(request: FpsControlRequest):
         await manager.start_streaming()
 
     return {"status": "success", "message": f"Stream FPS set to {request.fps}"}
+
+
+@app.post("/event/cursorEvent")
+async def get_click(request: CursorRequest):
+    print("TEST")
+    if request.type == CursorEventType.HOVER:
+        pass
+    elif request.type == CursorEventType.CLICK:
+        await manager.page.click(
+            position={"x": request.x_cord, "y": request.y_cord},
+            selector="html",
+        )
+    else:
+        pass
+    return {"status": "success", "message": "Success"}
 
 
 if __name__ == "__main__":
