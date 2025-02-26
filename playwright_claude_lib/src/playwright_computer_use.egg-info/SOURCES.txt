@@ -1,0 +1,13 @@
+LICENSE
+README.md
+pyproject.toml
+src/playwright_computer_use/__init__.py
+src/playwright_computer_use/async_api.py
+src/playwright_computer_use/sync_api.py
+src/playwright_computer_use.egg-info/PKG-INFO
+src/playwright_computer_use.egg-info/SOURCES.txt
+src/playwright_computer_use.egg-info/dependency_links.txt
+src/playwright_computer_use.egg-info/requires.txt
+src/playwright_computer_use.egg-info/top_level.txt
+src/playwright_computer_use/assets/__init__.py
+src/playwright_computer_use/assets/cursor.png

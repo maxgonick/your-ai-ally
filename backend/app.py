@@ -160,15 +160,14 @@ class ConnectionManager:
                 verbose=True,
                 only_n_most_recent_images=5,
             )
-
             # Extract and send the final response from Claude
-            if messages and len(messages) > 0:
-                last_message = messages[-1]
-                if last_message["role"] == "assistant" and "content" in last_message:
-                    for content_block in last_message["content"]:
-                        if content_block["type"] == "text":
-                            await self.send_message(content_block["text"])
-
+            for message in messages:
+                if message["role"] == "assistant":
+                    for content_block in message["content"]:
+                        if content_block["type"] == "tool_use":
+                            logging_msg = f"tool call > {content_block['name']} {content_block['input']}"
+                            print(logging_msg)
+                            await self.send_message(logging_msg)
             return {"status": "completed", "message": "Agent task completed"}
         except Exception as e:
             await self.send_message(f"Error running agent: {str(e)}")
