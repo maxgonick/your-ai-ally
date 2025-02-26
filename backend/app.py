@@ -21,6 +21,7 @@ from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 from playwright_computer_use.async_api import PlaywrightToolbox
 from playwright_computer_use.loop import sampling_loop
 from anthropic import Anthropic
+from enum import Enum
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -196,6 +197,11 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
+class CursorEventType(Enum):
+    HOVER = 1
+    CLICK = 2
+
+
 # Request models
 class BrowserControlRequest(BaseModel):
     url: Optional[str] = None
@@ -207,6 +213,12 @@ class AgentPromptRequest(BaseModel):
 
 class FpsControlRequest(BaseModel):
     fps: int
+
+
+class CursorRequest(BaseModel):
+    type: CursorEventType
+    x_cord: float
+    y_cord: float
 
 
 # REST API endpoints
@@ -309,6 +321,21 @@ async def set_fps(request: FpsControlRequest):
         await manager.start_streaming()
 
     return {"status": "success", "message": f"Stream FPS set to {request.fps}"}
+
+
+@app.post("/event/cursorEvent")
+async def get_click(request: CursorRequest):
+    print("TEST")
+    if request.type == CursorEventType.HOVER:
+        pass
+    elif request.type == CursorEventType.CLICK:
+        await manager.page.click(
+            position={"x": request.x_cord, "y": request.y_cord},
+            selector="html",
+        )
+    else:
+        pass
+    return {"status": "success", "message": "Success"}
 
 
 if __name__ == "__main__":
